@@ -36,7 +36,7 @@ jobs:
           # Check commits since last tag
           COMMITS=$(git log ${LAST_TAG}..HEAD --oneline --format=%B)
           
-          BUMP_TYPE="patch"
+          BUMP_TYPE="none"
           
           # Check for breaking changes (major)
           if echo "$COMMITS" | grep -q "BREAKING CHANGE:"; then
@@ -61,7 +61,12 @@ jobs:
           echo "bump=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
-          echo "Version bump: $BUMP_TYPE ($VERSION -> $NEW_VERSION)"
+          
+          if [[ "$BUMP_TYPE" == "none" ]]; then
+            echo "ℹ️  No versioned commits found (only chore/docs/style), skipping release"
+          else
+            echo "Version bump: $BUMP_TYPE ($VERSION -> $NEW_VERSION)"
+          fi
 
       - name: Create and push tag 🏷️
         if: steps.bump.outputs.bump != 'none'
