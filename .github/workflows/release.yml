@@ -14,6 +14,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: google-github-actions/release-please-action@v4
+        id: release
         with:
           release-type: node
           package-name: action-release-and-publish
+
+      - name: Create major/minor tags 🏷️
+        if: ${{ steps.release.outputs.release_created }}
+        shell: bash
+        run: |
+          VERSION="${{ steps.release.outputs.version }}"
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f1,2)
+          TAG="v$VERSION"
+          MAJOR_TAG="v$MAJOR"
+          MINOR_TAG="v$MINOR"
+          
+          echo "Creating tags for version: $VERSION"
+          echo "  $TAG (exact)"
+          echo "  $MINOR_TAG (minor)"
+          echo "  $MAJOR_TAG (major)"
+          
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag -f $MINOR_TAG $TAG
+          git tag -f $MAJOR_TAG $TAG
+          git push origin $MINOR_TAG $MAJOR_TAG --force

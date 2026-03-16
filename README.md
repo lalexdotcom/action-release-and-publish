@@ -65,6 +65,18 @@ Whether to publish to npm. Set to `false` to just create a GitHub release.
     publish: false
 ```
 
+### `node-version`
+
+**Optional** | Default: `lts/*`
+
+The Node.js version to use for building and publishing. Accepts any value supported by [actions/setup-node](https://github.com/actions/setup-node) (e.g., `18`, `20.x`, `lts/hydrogen`).
+
+```yaml
+- uses: lalexdotcom/action-release-and-publish@v1
+  with:
+    node-version: '20'
+```
+
 ## Secrets
 
 ### `NPM_TOKEN`
