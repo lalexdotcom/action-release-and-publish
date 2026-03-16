@@ -1,0 +1,170 @@
+name: Release and Publish
+description: Release and publish packages to NPM with automatic versioning and GitHub releases
+
+branding:
+  icon: package
+  color: red
+
+inputs:
+  npm-registry:
+    description: NPM registry URL
+    required: false
+    default: 'https://registry.npmjs.org'
+  publish:
+    description: Whether to publish to NPM
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Validate version tag 📋
+      id: validate
+      shell: bash
+      run: |
+        TAG="${{ github.ref_name }}"
+        echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+        # Valider le format x.y.z avec optionnel suffixe prerelease
+        if [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?$ ]]; then
+          echo "valid=true" >> "$GITHUB_OUTPUT"
+          echo "✓ Tag valide: $TAG"
+        else
+          echo "valid=false" >> "$GITHUB_OUTPUT"
+          echo "✗ Format de tag invalide: $TAG"
+          echo "Format attendu: v{major}.{minor}.{patch}[-{prerelease}]"
+          exit 1
+        fi
+
+    - name: Determine if prerelease 🔍
+      id: prerelease
+      shell: bash
+      run: |
+        TAG="${{ steps.validate.outputs.tag }}"
+
+        if [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Detect package manager 📦
+      id: package-manager
+      shell: bash
+      run: |
+        if [ -f "pnpm-lock.yaml" ]; then
+          echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+          echo "Using pnpm"
+        elif [ -f "yarn.lock" ]; then
+          echo "pm=yarn" >> "$GITHUB_OUTPUT"
+          echo "Using yarn"
+        else
+          echo "pm=npm" >> "$GITHUB_OUTPUT"
+          echo "Using npm"
+        fi
+
+    - name: Set pnpm (if needed)
+      if: steps.package-manager.outputs.pm == 'pnpm'
+      uses: pnpm/action-setup@v4
+
+    - name: Use Node LTS ✨
+      uses: actions/setup-node@v4
+      with:
+        node-version: lts/*
+        registry-url: ${{ inputs.npm-registry }}
+        cache: ${{ steps.package-manager.outputs.pm }}
+
+    - name: Install dependencies 📦
+      shell: bash
+      run: |
+        PM="${{ steps.package-manager.outputs.pm }}"
+        if [ "$PM" = "pnpm" ]; then
+          pnpm install --frozen-lockfile
+        elif [ "$PM" = "yarn" ]; then
+          yarn install --frozen-lockfile
+        else
+          npm ci
+        fi
+
+    - name: Build 🔨
+      shell: bash
+      run: |
+        PM="${{ steps.package-manager.outputs.pm }}"
+        if [ "$PM" = "pnpm" ]; then
+          pnpm build
+        elif [ "$PM" = "yarn" ]; then
+          yarn build
+        else
+          npm run build
+        fi
+
+    - name: Extract version and prerelease type 📦
+      id: version
+      shell: bash
+      run: |
+        VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
+
+        # Extract prerelease type (e.g., 1.0.0-beta.1 -> beta)
+        if [[ $VERSION =~ -([a-z]+) ]]; then
+          PRERELEASE_TYPE="${BASH_REMATCH[1]}"
+        else
+          PRERELEASE_TYPE="stable"
+        fi
+        echo "type=$PRERELEASE_TYPE" >> "$GITHUB_OUTPUT"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "Version: $VERSION, Prerelease type: $PRERELEASE_TYPE"
+
+    - name: Publish to NPM 🚀
+      if: inputs.publish == 'true'
+      shell: bash
+      run: |
+        npm publish --access public --tag ${{ steps.version.outputs.type }}
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+    - name: Get latest stable release 📦
+      id: latest-stable
+      shell: bash
+      run: |
+        LATEST=$(curl -L -H "Accept: application/vnd.github+json" \
+             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+             -H "X-GitHub-Api-Version: 2022-11-28" \
+             -s "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100" | \
+          jq -r '.[] | select(.prerelease == false) | .tag_name' | head -n 1)
+        if [ -z "$LATEST" ]; then
+          LATEST="none"
+        fi
+        echo "version=$LATEST" >> "$GITHUB_OUTPUT"
+        echo "Latest stable release: $LATEST"
+
+    - name: Add dist-tags if applicable 📌
+      if: inputs.publish == 'true'
+      shell: bash
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        PKG_NAME=$(grep '"name"' package.json | head -1 | sed 's/.*"name": "\(.*\)".*/\1/')
+
+        if [[ "${{ steps.version.outputs.type }}" == "stable" || "${{ steps.latest-stable.outputs.version }}" == "none" ]]; then
+          npm dist-tag add "$PKG_NAME@$VERSION" latest
+        fi
+
+        if [[ "${{ steps.version.outputs.type }}" == "rc" ]]; then
+          npm dist-tag add "$PKG_NAME@$VERSION" next
+        fi
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+    - name: Create GitHub Release 🎉
+      shell: bash
+      run: |
+        TAG="${{ steps.validate.outputs.tag }}"
+        IS_PRERELEASE="${{ steps.prerelease.outputs.is_prerelease }}"
+
+        ARGS="--generate-notes"
+        if [[ "$IS_PRERELEASE" == "true" ]]; then
+          ARGS="$ARGS --prerelease"
+        fi
+
+        gh release create "$TAG" $ARGS
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
