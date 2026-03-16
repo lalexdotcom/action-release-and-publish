@@ -1,6 +1,8 @@
 # Commit Conventions for AI Agents
 
-This document ensures that AI agents and code generation tools follow proper commit conventions for automatic versioning with release-please-action.
+This document ensures that AI agents and code generation tools follow proper commit conventions for automatic versioning.
+
+The `release.yml` workflow analyzes commits on every push to `main` and automatically bumps the version, creates tags, and publishes a GitHub Release — **no manual action needed**.
 
 ## Commit Message Format
 
@@ -38,21 +40,17 @@ fix(setup): resolve node version detection issue
 ```
 
 ### Breaking Change
-When making a breaking change, add a `BREAKING CHANGE:` footer:
+When making a breaking change, add a `BREAKING CHANGE:` line in the commit body:
 
 ```
-feat(action)!: redesign package manager detection
+feat(action): redesign package manager detection
 
 BREAKING CHANGE: The `detect-pm` output name has changed to `pm`
 ```
 
-Or use the `!` before the colon:
-
-```
-feat!: drop support for node 14
-```
-
 This will trigger: **MAJOR** version bump
+
+> ⚠️ The `!` suffix (e.g., `feat!:`) is **not detected** by the release workflow. Always use `BREAKING CHANGE:` in the commit body.
 
 ## Automatic Version Bumps
 
@@ -72,6 +70,7 @@ When generating or modifying code in this repository:
    - Multiple commits, each with appropriate type
 5. **Avoid generic messages** like "update code" or "fix stuff"
 6. **When unsure of type**, prefer `fix` or `chore` over vague categories
+7. **`chore`, `docs`, `style`, `refactor`, `perf`, `test`** commits do **not trigger a release** — only `feat`, `fix`, and `BREAKING CHANGE` do
 
 ## Examples in This Action
 
