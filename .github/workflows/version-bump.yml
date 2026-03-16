@@ -80,3 +80,4 @@ jobs:
           git push origin "$TAG"
           
           echo "✓ Created and pushed tag: $TAG"
+          echo "Release workflow will create major/minor tags for stable releases"

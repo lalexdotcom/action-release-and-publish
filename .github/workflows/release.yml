@@ -47,6 +47,7 @@ jobs:
           fi
 
       - name: Create major/minor tags 🏷️
+        if: steps.prerelease.outputs.is_prerelease == 'false'
         shell: bash
         run: |
           TAG="${{ steps.validate.outputs.tag }}"
