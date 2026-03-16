@@ -2,9 +2,8 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*.*.*"
-      - "v*.*.*-*"
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -18,38 +17,75 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate tag format 📋
-        id: validate
+      - name: Determine version bump 📈
+        id: bump
         shell: bash
         run: |
-          TAG="${{ github.ref_name }}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          
-          if [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?$ ]]; then
-            echo "valid=true" >> "$GITHUB_OUTPUT"
-            echo "✓ Tag valide: $TAG"
+          # Get last full version tag (ignore partial tags like v1, v1.2, v1-beta)
+          LAST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
+          LAST_TAG="${LAST_TAG:-v0.0.0}"
+          echo "Last tag: $LAST_TAG"
+
+          # Parse current version
+          VERSION="${LAST_TAG:1}"  # Remove 'v' prefix
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          PATCH=$(echo $VERSION | cut -d. -f3)
+
+          echo "Current version: $MAJOR.$MINOR.$PATCH"
+
+          # Check commits since last tag
+          COMMITS=$(git log ${LAST_TAG}..HEAD --oneline --format=%B)
+
+          BUMP_TYPE="none"
+
+          # Check for breaking changes (major)
+          if echo "$COMMITS" | grep -q "BREAKING CHANGE:"; then
+            BUMP_TYPE="major"
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          # Check for features (minor)
+          elif echo "$COMMITS" | grep -q "^feat"; then
+            BUMP_TYPE="minor"
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          # Check for fixes (patch)
+          elif echo "$COMMITS" | grep -q "^fix"; then
+            BUMP_TYPE="patch"
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          NEW_TAG="v$NEW_VERSION"
+
+          echo "bump=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+
+          if [[ "$BUMP_TYPE" == "none" ]]; then
+            echo "ℹ️  No versioned commits found (only chore/docs/style), skipping release"
           else
-            echo "valid=false" >> "$GITHUB_OUTPUT"
-            echo "✗ Format de tag invalide: $TAG"
-            exit 1
+            echo "Version bump: $BUMP_TYPE ($VERSION -> $NEW_VERSION)"
           fi
 
       - name: Determine if prerelease 🔍
+        if: steps.bump.outputs.bump != 'none'
         id: prerelease
         shell: bash
         run: |
-          TAG="${{ steps.validate.outputs.tag }}"
-          
+          TAG="${{ steps.bump.outputs.tag }}"
           if [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
           else
             echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create partial tags 🏷️
+      - name: Create tags 🏷️
+        if: steps.bump.outputs.bump != 'none'
         shell: bash
         run: |
-          TAG="${{ steps.validate.outputs.tag }}"
+          TAG="${{ steps.bump.outputs.tag }}"
           VERSION="${TAG:1}"  # Remove 'v' prefix
           IS_PRERELEASE="${{ steps.prerelease.outputs.is_prerelease }}"
 
@@ -60,36 +96,38 @@ jobs:
 
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
+          git tag "$TAG"
 
           if [[ "$IS_PRERELEASE" == "false" ]]; then
             MAJOR_TAG="v$MAJOR"
             MINOR_TAG="v$MINOR"
-            echo "Creating stable partial tags: $MINOR_TAG, $MAJOR_TAG"
+            echo "Creating stable tags: $TAG, $MINOR_TAG, $MAJOR_TAG"
             git tag -f $MINOR_TAG $TAG
             git tag -f $MAJOR_TAG $TAG
-            git push origin $MINOR_TAG $MAJOR_TAG --force
+            git push origin $TAG $MINOR_TAG $MAJOR_TAG --force
           else
             # Extract prerelease type (e.g., beta.2 -> beta, rc.1 -> rc)
             PRERELEASE_TYPE=$(echo $VERSION | cut -d- -f2 | cut -d. -f1)
             MAJOR_PRE_TAG="v$MAJOR-$PRERELEASE_TYPE"
             MINOR_PRE_TAG="v$MINOR-$PRERELEASE_TYPE"
-            echo "Creating prerelease partial tags: $MINOR_PRE_TAG, $MAJOR_PRE_TAG"
+            echo "Creating prerelease tags: $TAG, $MINOR_PRE_TAG, $MAJOR_PRE_TAG"
             git tag -f $MINOR_PRE_TAG $TAG
             git tag -f $MAJOR_PRE_TAG $TAG
-            git push origin $MINOR_PRE_TAG $MAJOR_PRE_TAG --force
+            git push origin $TAG $MINOR_PRE_TAG $MAJOR_PRE_TAG --force
           fi
 
       - name: Create GitHub Release 🎉
+        if: steps.bump.outputs.bump != 'none'
         shell: bash
         run: |
-          TAG="${{ steps.validate.outputs.tag }}"
+          TAG="${{ steps.bump.outputs.tag }}"
           IS_PRERELEASE="${{ steps.prerelease.outputs.is_prerelease }}"
-          
+
           ARGS="--generate-notes"
           if [[ "$IS_PRERELEASE" == "true" ]]; then
             ARGS="$ARGS --prerelease"
           fi
-          
+
           gh release create "$TAG" $ARGS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
