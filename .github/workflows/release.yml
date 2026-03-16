@@ -46,27 +46,38 @@ jobs:
             echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create major/minor tags 🏷️
-        if: steps.prerelease.outputs.is_prerelease == 'false'
+      - name: Create partial tags 🏷️
         shell: bash
         run: |
           TAG="${{ steps.validate.outputs.tag }}"
           VERSION="${TAG:1}"  # Remove 'v' prefix
-          MAJOR=$(echo $VERSION | cut -d. -f1)
-          MINOR=$(echo $VERSION | cut -d. -f1,2)
-          MAJOR_TAG="v$MAJOR"
-          MINOR_TAG="v$MINOR"
-          
-          echo "Creating tags for version: $VERSION"
-          echo "  $TAG (exact)"
-          echo "  $MINOR_TAG (minor)"
-          echo "  $MAJOR_TAG (major)"
-          
+          IS_PRERELEASE="${{ steps.prerelease.outputs.is_prerelease }}"
+
+          # Extract base numeric version (x.y.z) and major/minor parts
+          BASE_VERSION=$(echo $VERSION | cut -d- -f1)
+          MAJOR=$(echo $BASE_VERSION | cut -d. -f1)
+          MINOR=$(echo $BASE_VERSION | cut -d. -f1,2)
+
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git tag -f $MINOR_TAG $TAG
-          git tag -f $MAJOR_TAG $TAG
-          git push origin $MINOR_TAG $MAJOR_TAG --force
+
+          if [[ "$IS_PRERELEASE" == "false" ]]; then
+            MAJOR_TAG="v$MAJOR"
+            MINOR_TAG="v$MINOR"
+            echo "Creating stable partial tags: $MINOR_TAG, $MAJOR_TAG"
+            git tag -f $MINOR_TAG $TAG
+            git tag -f $MAJOR_TAG $TAG
+            git push origin $MINOR_TAG $MAJOR_TAG --force
+          else
+            # Extract prerelease type (e.g., beta.2 -> beta, rc.1 -> rc)
+            PRERELEASE_TYPE=$(echo $VERSION | cut -d- -f2 | cut -d. -f1)
+            MAJOR_PRE_TAG="v$MAJOR-$PRERELEASE_TYPE"
+            MINOR_PRE_TAG="v$MINOR-$PRERELEASE_TYPE"
+            echo "Creating prerelease partial tags: $MINOR_PRE_TAG, $MAJOR_PRE_TAG"
+            git tag -f $MINOR_PRE_TAG $TAG
+            git tag -f $MAJOR_PRE_TAG $TAG
+            git push origin $MINOR_PRE_TAG $MAJOR_PRE_TAG --force
+          fi
 
       - name: Create GitHub Release 🎉
         shell: bash

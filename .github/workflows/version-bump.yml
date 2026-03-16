@@ -21,8 +21,9 @@ jobs:
         id: bump
         shell: bash
         run: |
-          # Get last tag
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          # Get last full version tag (ignore partial tags like v1, v1.2, v1-beta)
+          LAST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
+          LAST_TAG="${LAST_TAG:-v0.0.0}"
           echo "Last tag: $LAST_TAG"
           
           # Parse current version
