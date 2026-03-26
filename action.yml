@@ -124,6 +124,20 @@ runs:
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "Version: $VERSION, Prerelease type: $PRERELEASE_TYPE"
 
+    - name: Validate inputs for publishing 🔐
+      if: inputs.publish == 'true'
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.npm-token }}" ]; then
+          echo "❌ Error: npm-token is required when publish is true"
+          exit 1
+        fi
+        if [ -z "${{ inputs.github-token }}" ]; then
+          echo "❌ Error: github-token is required"
+          exit 1
+        fi
+        echo "✓ All required inputs provided"
+
     - name: Publish to NPM 🚀
       if: inputs.publish == 'true'
       shell: bash

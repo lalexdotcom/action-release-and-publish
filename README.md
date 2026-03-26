@@ -35,8 +35,8 @@ jobs:
       - uses: lalexdotcom/action-release-and-publish@v1
         with:
           publish: true
-        secrets:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          npm-token: ${{ secrets.NPM_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## Inputs
@@ -77,9 +77,7 @@ The Node.js version to use for building and publishing. Accepts any value suppor
     node-version: '20'
 ```
 
-## Secrets
-
-### `NPM_TOKEN`
+### `npm-token`
 
 **Required** when `publish: true`
 
@@ -87,8 +85,20 @@ Your npm authentication token for publishing packages.
 
 ```yaml
 - uses: lalexdotcom/action-release-and-publish@v1
-  secrets:
-    NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+  with:
+    npm-token: ${{ secrets.NPM_TOKEN }}
+```
+
+### `github-token`
+
+**Required**
+
+GitHub token used to create releases and query the API.
+
+```yaml
+- uses: lalexdotcom/action-release-and-publish@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## Requirements
@@ -99,6 +109,7 @@ Your npm authentication token for publishing packages.
   - `build` script
 - Semantic versioned git tags (e.g., `v1.0.0`, `v1.0.0-beta.1`)
 - `NPM_TOKEN` secret configured in your repository (for publishing)
+- `GITHUB_TOKEN` available in your workflow (automatically provided by GitHub)
 
 ## Version Numbering
 
@@ -136,8 +147,8 @@ jobs:
         with:
           npm-registry: 'https://registry.npmjs.org'
           publish: true
-        secrets:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          npm-token: ${{ secrets.NPM_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ### Release without publishing to npm

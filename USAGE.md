@@ -28,8 +28,8 @@ jobs:
         uses: lalexdotcom/action-release-and-publish@v1
         with:
           publish: true
-        secrets:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          npm-token: ${{ secrets.NPM_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## What You Need
@@ -58,8 +58,8 @@ jobs:
   with:
     npm-registry: 'https://your-registry.com'
     publish: true
-  secrets:
-    NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    npm-token: ${{ secrets.NPM_TOKEN }}
+    github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ### With notifications
@@ -69,8 +69,8 @@ jobs:
   uses: lalexdotcom/action-release-and-publish@v1
   with:
     publish: true
-  secrets:
-    NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    npm-token: ${{ secrets.NPM_TOKEN }}
+    github-token: ${{ secrets.GITHUB_TOKEN }}
 
 - name: Notify Slack
   if: success()
