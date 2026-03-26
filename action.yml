@@ -18,6 +18,12 @@ inputs:
     description: Node.js version to use
     required: false
     default: 'lts/*'
+  npm-token:
+    description: NPM authentication token
+    required: false
+  github-token:
+    description: GitHub token for creating releases
+    required: true
 
 runs:
   using: composite
@@ -124,14 +130,14 @@ runs:
       run: |
         npm publish --access public --tag ${{ steps.version.outputs.type }}
       env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
 
     - name: Get latest stable release 📦
       id: latest-stable
       shell: bash
       run: |
         LATEST=$(curl -L -H "Accept: application/vnd.github+json" \
-             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+             -H "Authorization: Bearer ${{ inputs.github-token }}" \
              -H "X-GitHub-Api-Version: 2022-11-28" \
              -s "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100" | \
           jq -r '.[] | select(.prerelease == false) | .tag_name' | head -n 1)
@@ -156,7 +162,7 @@ runs:
           npm dist-tag add "$PKG_NAME@$VERSION" next
         fi
       env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
 
     - name: Create GitHub Release 🎉
       shell: bash
@@ -171,4 +177,4 @@ runs:
 
         gh release create "$TAG" $ARGS
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
