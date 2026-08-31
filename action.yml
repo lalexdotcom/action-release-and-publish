@@ -141,6 +141,35 @@ runs:
         fi
         echo "✓ All required inputs provided"
 
+    - name: Create GitHub Release 🎉
+      shell: bash
+      run: |
+        TAG="${{ steps.validate.outputs.tag }}"
+        IS_PRERELEASE="${{ steps.prerelease.outputs.is_prerelease }}"
+
+        # An array, not a string: a notes path containing a space would be
+        # word-split into two arguments.
+        ARGS=(--generate-notes)
+        if [[ "$IS_PRERELEASE" == "true" ]]; then
+          ARGS+=(--prerelease)
+        fi
+
+        # NOTES_FILE arrives through env, never through ${{ }} interpolation:
+        # an interpolated value is pasted into this script, so a body holding
+        # backticks or $(...) would execute on a runner holding NPM_TOKEN.
+        if [[ -n "$NOTES_FILE" ]]; then
+          if [[ ! -r "$NOTES_FILE" ]]; then
+            echo "❌ Error: release-notes-file not readable: $NOTES_FILE"
+            exit 1
+          fi
+          ARGS+=(--notes-file "$NOTES_FILE")
+        fi
+
+        gh release create "$TAG" "${ARGS[@]}"
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        NOTES_FILE: ${{ inputs.release-notes-file }}
+
     - name: Publish to NPM 🚀
       if: inputs.publish == 'true'
       shell: bash
@@ -181,17 +210,4 @@ runs:
       env:
         NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
 
-    - name: Create GitHub Release 🎉
-      shell: bash
-      run: |
-        TAG="${{ steps.validate.outputs.tag }}"
-        IS_PRERELEASE="${{ steps.prerelease.outputs.is_prerelease }}"
 
-        ARGS="--generate-notes"
-        if [[ "$IS_PRERELEASE" == "true" ]]; then
-          ARGS="$ARGS --prerelease"
-        fi
-
-        gh release create "$TAG" $ARGS
-      env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
