@@ -154,7 +154,7 @@ runs:
           ARGS+=(--prerelease)
         fi
 
-        # NOTES_FILE arrives through env, never through ${{ }} interpolation:
+        # NOTES_FILE arrives through env, never through a workflow expression:
         # an interpolated value is pasted into this script, so a body holding
         # backticks or $(...) would execute on a runner holding NPM_TOKEN.
         if [[ -n "$NOTES_FILE" ]]; then
