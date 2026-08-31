@@ -62,6 +62,26 @@ jobs:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+### Release body from your own file
+
+The action reads the path; producing the file is your workflow's job.
+
+```yaml
+- name: Build the release body 📝
+  id: notes
+  shell: bash
+  run: |
+    # e.g. the section of CHANGELOG.md matching this tag
+    echo "file=$RUNNER_TEMP/release-notes.md" >> "$GITHUB_OUTPUT"
+
+- uses: lalexdotcom/action-release-and-publish@v1
+  with:
+    publish: true
+    npm-token: ${{ secrets.NPM_TOKEN }}
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    release-notes-file: ${{ steps.notes.outputs.file }}
+```
+
 ### With notifications
 
 ```yaml

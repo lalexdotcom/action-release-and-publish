@@ -24,6 +24,9 @@ inputs:
   github-token:
     description: GitHub token for creating releases
     required: true
+  release-notes-file:
+    description: Path to a file whose content becomes the GitHub Release body. Generated notes are appended after it. When omitted, generated notes are used alone.
+    required: false
 
 runs:
   using: composite

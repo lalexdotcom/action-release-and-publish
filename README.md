@@ -101,6 +101,24 @@ GitHub token used to create releases and query the API.
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+### `release-notes-file`
+
+**Optional** | Default: none
+
+Path to a file whose content becomes the GitHub Release body. GitHub's generated
+notes are appended after it, so the `Full Changelog` link is preserved. When
+omitted, generated notes are used alone. The file is produced by your own
+workflow — this action only reads the path.
+
+The job fails if the path is set but unreadable, rather than falling back to
+generated notes: an empty release body is only noticed after publication.
+
+```yaml
+- uses: lalexdotcom/action-release-and-publish@v1
+  with:
+    release-notes-file: ${{ steps.notes.outputs.file }}
+```
+
 ## Requirements
 
 - `package.json` with:
