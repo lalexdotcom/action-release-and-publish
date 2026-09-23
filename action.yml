@@ -61,6 +61,37 @@ runs:
           echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
         fi
 
+    - name: Extract version and prerelease type 📦
+      id: version
+      shell: bash
+      run: |
+        VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
+
+        # Extract prerelease type (e.g., 1.0.0-beta.1 -> beta)
+        if [[ $VERSION =~ -([a-z]+) ]]; then
+          PRERELEASE_TYPE="${BASH_REMATCH[1]}"
+        else
+          PRERELEASE_TYPE="stable"
+        fi
+        echo "type=$PRERELEASE_TYPE" >> "$GITHUB_OUTPUT"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "Version: $VERSION, Prerelease type: $PRERELEASE_TYPE"
+
+    - name: Check version matches tag 🔎
+      shell: bash
+      run: |
+        TAG="${{ steps.validate.outputs.tag }}"
+        VERSION="${{ steps.version.outputs.version }}"
+
+        if [ "v$VERSION" != "$TAG" ]; then
+          echo "✗ Version mismatch"
+          echo "  Tag:          $TAG"
+          echo "  package.json: $VERSION"
+          echo "Le champ \"version\" de package.json doit correspondre au tag (sans le préfixe 'v')."
+          exit 1
+        fi
+        echo "✓ Version cohérente: $VERSION ↔ $TAG"
+
     - name: Detect package manager 📦
       id: package-manager
       shell: bash
@@ -110,22 +141,6 @@ runs:
         else
           npm run build
         fi
-
-    - name: Extract version and prerelease type 📦
-      id: version
-      shell: bash
-      run: |
-        VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
-
-        # Extract prerelease type (e.g., 1.0.0-beta.1 -> beta)
-        if [[ $VERSION =~ -([a-z]+) ]]; then
-          PRERELEASE_TYPE="${BASH_REMATCH[1]}"
-        else
-          PRERELEASE_TYPE="stable"
-        fi
-        echo "type=$PRERELEASE_TYPE" >> "$GITHUB_OUTPUT"
-        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-        echo "Version: $VERSION, Prerelease type: $PRERELEASE_TYPE"
 
     - name: Validate inputs for publishing 🔐
       if: inputs.publish == 'true'
