@@ -40,7 +40,15 @@ fix(setup): resolve node version detection issue
 ```
 
 ### Breaking Change
-When making a breaking change, add a `BREAKING CHANGE:` line in the commit body:
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) defines two
+ways to mark a breaking change, and the release workflow detects both. Prefer the
+`!` suffix — it is visible in a one-line log, where a footer is not:
+
+```
+feat(action)!: redesign package manager detection
+```
+
+The footer form stays available when the break needs explaining:
 
 ```
 feat(action): redesign package manager detection
@@ -48,9 +56,12 @@ feat(action): redesign package manager detection
 BREAKING CHANGE: The `detect-pm` output name has changed to `pm`
 ```
 
-This will trigger: **MAJOR** version bump
+Either one triggers: **MAJOR** version bump. They can be combined, and
+`BREAKING-CHANGE:` is accepted as a spec synonym of `BREAKING CHANGE:`.
 
-> ⚠️ The `!` suffix (e.g., `feat!:`) is **not detected** by the release workflow. Always use `BREAKING CHANGE:` in the commit body.
+> ⚠️ Only the **subject line** decides the type. A body line reading
+> `fixes the parser` or `features added:` does not trigger a bump — the type
+> must be a real prefix, as in `fix: …` or `feat(scope)!: …`.
 
 ## Automatic Version Bumps
 
@@ -70,7 +81,7 @@ When generating or modifying code in this repository:
    - Multiple commits, each with appropriate type
 5. **Avoid generic messages** like "update code" or "fix stuff"
 6. **When unsure of type**, prefer `fix` or `chore` over vague categories
-7. **`chore`, `docs`, `style`, `refactor`, `perf`, `test`** commits do **not trigger a release** — only `feat`, `fix`, and `BREAKING CHANGE` do
+7. **`chore`, `docs`, `style`, `refactor`, `perf`, `test`** commits do **not trigger a release** — only `feat`, `fix`, and breaking changes (`!` or `BREAKING CHANGE:`) do
 
 ## Examples in This Action
 

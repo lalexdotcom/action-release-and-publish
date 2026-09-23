@@ -34,24 +34,33 @@ jobs:
 
           echo "Current version: $MAJOR.$MINOR.$PATCH"
 
-          # Check commits since last tag
-          COMMITS=$(git log ${LAST_TAG}..HEAD --oneline --format=%B)
+          # Subjects and bodies are read apart: a type word inside a body
+          # ("fixes the parser") must not count as a bump, while the
+          # BREAKING CHANGE footer only ever lives in a body.
+          SUBJECTS=$(git log ${LAST_TAG}..HEAD --format=%s)
+          BODIES=$(git log ${LAST_TAG}..HEAD --format=%B)
+
+          # Anchoring the subject patterns on this list is what keeps
+          # "features added:" from reading as a feat commit.
+          TYPES="feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert"
 
           BUMP_TYPE="none"
 
-          # Check for breaking changes (major)
-          if echo "$COMMITS" | grep -qE "^BREAKING CHANGE:"; then
+          # Both Conventional Commits forms count as breaking: the "!" before
+          # the colon, and the footer. BREAKING-CHANGE is a spec synonym.
+          if echo "$SUBJECTS" | grep -qE "^($TYPES)(\([^)]*\))?!:" \
+            || echo "$BODIES" | grep -qE "^BREAKING[ -]CHANGE:"; then
             BUMP_TYPE="major"
             MAJOR=$((MAJOR + 1))
             MINOR=0
             PATCH=0
           # Check for features (minor)
-          elif echo "$COMMITS" | grep -q "^feat"; then
+          elif echo "$SUBJECTS" | grep -qE "^feat(\([^)]*\))?:"; then
             BUMP_TYPE="minor"
             MINOR=$((MINOR + 1))
             PATCH=0
           # Check for fixes (patch)
-          elif echo "$COMMITS" | grep -q "^fix"; then
+          elif echo "$SUBJECTS" | grep -qE "^fix(\([^)]*\))?:"; then
             BUMP_TYPE="patch"
             PATCH=$((PATCH + 1))
           fi
