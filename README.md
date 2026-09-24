@@ -7,7 +7,7 @@ Automated release and publish action for npm packages with git tagging, version 
 - ✅ **Auto-detection** of package manager (npm, pnpm, yarn)
 - ✅ **Tag validation** - enforces semantic versioning format (v{major}.{minor}.{patch}[-{prerelease}])
 - ✅ **Version/tag consistency** - fails early if `package.json` version doesn't match the pushed tag
-- ✅ **NPM publishing** - with automatic dist-tags (latest, next, beta, rc)
+- ✅ **NPM publishing** - with automatic dist-tags (latest, latest-{major}, next, alpha, beta, rc), pruned when they fall behind
 - ✅ **GitHub Releases** - automatically created with release notes
 - ✅ **Prerelease detection** - handles alpha, beta, rc, and stable versions
 - ✅ **Multi-package-manager support** - works with npm, pnpm, and yarn
@@ -147,6 +147,28 @@ Tags must follow semantic versioning:
 - `v1.0.0-rc.1` - release candidate
 
 Prerelease versions are automatically tagged with their prerelease type in npm (alpha, beta, rc).
+
+## Dist-tags
+
+| Published version | npm dist-tag |
+|---|---|
+| stable, higher than the current `latest` | `latest` |
+| stable, on an older line (e.g. `1.9.1` after `2.0.0`) | `latest-{major}` (`latest-1`); `latest` does not move back |
+| prerelease | its type (`alpha`, `beta`, `rc`...) |
+| `rc` | also `next` |
+| very first publication, prerelease | also `latest` |
+
+When a stable becomes `latest`, every other tag still pointing at an older
+prerelease is removed: after `2.0.0`, a `next` on `2.0.0-rc.2` or a `beta` on
+`2.0.0-beta.3` would install something older than `latest`. A `beta` on
+`3.0.0-beta.1` stays. Tags pointing at a release (`latest-1`, `lts`, `legacy`...)
+are never touched.
+
+On GitHub, a patch on an older line is created with `--latest=false`, so the
+"Latest" badge stays on the highest release.
+
+> The `stable` dist-tag, which only duplicated `latest`, is no longer set, and is
+> removed from the registry by the next stable release.
 
 ## License
 

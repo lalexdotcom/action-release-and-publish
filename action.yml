@@ -66,6 +66,8 @@ runs:
       shell: bash
       run: |
         VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
+        PKG_NAME=$(grep '"name"' package.json | head -1 | sed 's/.*"name": "\(.*\)".*/\1/')
+        echo "name=$PKG_NAME" >> "$GITHUB_OUTPUT"
 
         # Extract prerelease type (e.g., 1.0.0-beta.1 -> beta)
         if [[ $VERSION =~ -([a-z]+) ]]; then
@@ -167,6 +169,14 @@ runs:
         ARGS=(--generate-notes)
         if [[ "$IS_PRERELEASE" == "true" ]]; then
           ARGS+=(--prerelease)
+        else
+          # GitHub marks every new release "Latest": a patch on an older line
+          # must not take that from a newer release. No release yet: keep it.
+          source "$GITHUB_ACTION_PATH/lib/version.sh"
+          LATEST_RELEASE=$(gh release view --json tagName --jq .tagName 2>/dev/null || true)
+          if [[ -n "$LATEST_RELEASE" ]] && ! version_gt "${TAG#v}" "${LATEST_RELEASE#v}"; then
+            ARGS+=(--latest=false)
+          fi
         fi
 
         # NOTES_FILE arrives through env, never through a workflow expression:
@@ -185,44 +195,90 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         NOTES_FILE: ${{ inputs.release-notes-file }}
 
-    - name: Publish to NPM 🚀
+    - name: Read current dist-tags 📌
+      id: dist-tags
       if: inputs.publish == 'true'
       shell: bash
       run: |
-        npm publish --access public --tag ${{ steps.version.outputs.type }}
+        # Read before publishing: the decisions below compare against the
+        # versions the registry served until now.
+        if ! TAGS=$(npm view "$PKG_NAME" dist-tags --json 2>"$RUNNER_TEMP/npm-view.err"); then
+          # A package never published answers E404: it has no tags yet.
+          if grep -q E404 "$RUNNER_TEMP/npm-view.err"; then
+            TAGS='{}'
+          else
+            cat "$RUNNER_TEMP/npm-view.err"
+            exit 1
+          fi
+        fi
+        echo "json=$(jq -c . <<<"$TAGS")" >> "$GITHUB_OUTPUT"
+        echo "latest=$(jq -r '.latest // ""' <<<"$TAGS")" >> "$GITHUB_OUTPUT"
+        echo "Current dist-tags: $(jq -c . <<<"$TAGS")"
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
+        PKG_NAME: ${{ steps.version.outputs.name }}
+
+    - name: Publish to NPM 🚀
+      id: publish
+      if: inputs.publish == 'true'
+      shell: bash
+      run: |
+        source "$GITHUB_ACTION_PATH/lib/version.sh"
+        TYPE="${{ steps.version.outputs.type }}"
+        VERSION="${{ steps.version.outputs.version }}"
+        LATEST="${{ steps.dist-tags.outputs.latest }}"
+
+        # A stable only takes latest when it moves it forward; a patch on an
+        # older line gets latest-<major> instead (e.g. 1.9.1 after 2.0.0).
+        DIST_TAG="$TYPE"
+        if [[ "$TYPE" == "stable" ]]; then
+          if [[ -z "$LATEST" ]] || version_gt "$VERSION" "$LATEST"; then
+            DIST_TAG="latest"
+          else
+            DIST_TAG="latest-${VERSION%%.*}"
+          fi
+        fi
+
+        npm publish --access public --tag "$DIST_TAG"
+        echo "dist-tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
       env:
         NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
 
-    - name: Get latest stable release 📦
-      id: latest-stable
-      shell: bash
-      run: |
-        LATEST=$(curl -L -H "Accept: application/vnd.github+json" \
-             -H "Authorization: Bearer ${{ inputs.github-token }}" \
-             -H "X-GitHub-Api-Version: 2022-11-28" \
-             -s "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100" | \
-          jq -r '.[] | select(.prerelease == false) | .tag_name' | head -n 1)
-        if [ -z "$LATEST" ]; then
-          LATEST="none"
-        fi
-        echo "version=$LATEST" >> "$GITHUB_OUTPUT"
-        echo "Latest stable release: $LATEST"
-
-    - name: Add dist-tags if applicable 📌
+    - name: Update dist-tags 📌
       if: inputs.publish == 'true'
       shell: bash
       run: |
+        source "$GITHUB_ACTION_PATH/lib/version.sh"
+        TYPE="${{ steps.version.outputs.type }}"
         VERSION="${{ steps.version.outputs.version }}"
-        PKG_NAME=$(grep '"name"' package.json | head -1 | sed 's/.*"name": "\(.*\)".*/\1/')
+        LATEST="${{ steps.dist-tags.outputs.latest }}"
 
-        if [[ "${{ steps.version.outputs.type }}" == "stable" || "${{ steps.latest-stable.outputs.version }}" == "none" ]]; then
+        # First publication ever: a prerelease also becomes latest.
+        if [[ "$TYPE" != "stable" && -z "$LATEST" ]]; then
           npm dist-tag add "$PKG_NAME@$VERSION" latest
         fi
 
-        if [[ "${{ steps.version.outputs.type }}" == "rc" ]]; then
+        if [[ "$TYPE" == "rc" ]]; then
           npm dist-tag add "$PKG_NAME@$VERSION" next
+        fi
+
+        # A new latest makes every tag left on an older prerelease stale:
+        # `npm i pkg@beta` would install something older than latest. Tags on
+        # a release (latest-1, lts, legacy...) are deliberate and stay.
+        # "stable" is dropped too: it only ever duplicated latest.
+        if [[ "${{ steps.publish.outputs.dist-tag }}" == "latest" ]]; then
+          while IFS=$'\t' read -r TAG TAG_VERSION; do
+            if [[ "$TAG" == "latest" ]]; then
+              continue
+            fi
+            if [[ "$TAG" == "stable" ]] || { [[ "$TAG_VERSION" == *-* ]] && version_gt "$VERSION" "$TAG_VERSION"; }; then
+              echo "Removing dist-tag $TAG ($TAG_VERSION)"
+              npm dist-tag rm "$PKG_NAME" "$TAG"
+            fi
+          done < <(jq -r 'to_entries[] | "\(.key)\t\(.value)"' <<<"$TAGS")
         fi
       env:
         NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
-
-
+        PKG_NAME: ${{ steps.version.outputs.name }}
+        # Through env, not interpolated: tag names come from the registry.
+        TAGS: ${{ steps.dist-tags.outputs.json }}
