@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: lalexdotcom/action-release-and-publish@v2
+      - uses: lalexdotcom/action-release-and-publish@v3
         with:
           publish: true
           npm-token: ${{ secrets.NPM_TOKEN }}
@@ -49,7 +49,7 @@ jobs:
 The npm registry URL to publish to.
 
 ```yaml
-- uses: lalexdotcom/action-release-and-publish@v2
+- uses: lalexdotcom/action-release-and-publish@v3
   with:
     npm-registry: https://registry.npmjs.org
 ```
@@ -61,7 +61,7 @@ The npm registry URL to publish to.
 Whether to publish to npm. Set to `false` to just create a GitHub release.
 
 ```yaml
-- uses: lalexdotcom/action-release-and-publish@v2
+- uses: lalexdotcom/action-release-and-publish@v3
   with:
     publish: false
 ```
@@ -73,7 +73,7 @@ Whether to publish to npm. Set to `false` to just create a GitHub release.
 The Node.js version to use for building and publishing. Accepts any value supported by [actions/setup-node](https://github.com/actions/setup-node) (e.g., `18`, `20.x`, `lts/hydrogen`).
 
 ```yaml
-- uses: lalexdotcom/action-release-and-publish@v2
+- uses: lalexdotcom/action-release-and-publish@v3
   with:
     node-version: '20'
 ```
@@ -85,7 +85,7 @@ The Node.js version to use for building and publishing. Accepts any value suppor
 Your npm authentication token for publishing packages.
 
 ```yaml
-- uses: lalexdotcom/action-release-and-publish@v2
+- uses: lalexdotcom/action-release-and-publish@v3
   with:
     npm-token: ${{ secrets.NPM_TOKEN }}
 ```
@@ -97,7 +97,7 @@ Your npm authentication token for publishing packages.
 GitHub token used to create releases and query the API.
 
 ```yaml
-- uses: lalexdotcom/action-release-and-publish@v2
+- uses: lalexdotcom/action-release-and-publish@v3
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -122,7 +122,7 @@ generated notes: an empty release body is only noticed after publication.
     # e.g. the section of CHANGELOG.md matching this tag
     echo "file=$RUNNER_TEMP/release-notes.md" >> "$GITHUB_OUTPUT"
 
-- uses: lalexdotcom/action-release-and-publish@v2
+- uses: lalexdotcom/action-release-and-publish@v3
   with:
     release-notes-file: ${{ steps.notes.outputs.file }}
 ```
